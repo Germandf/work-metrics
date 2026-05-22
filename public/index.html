@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Work Metrics</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>Work Metrics</h1>
+      <p id="subtitle">Local GitHub and Git activity</p>
+    </div>
+    <form id="periodForm" class="toolbar">
+      <label for="days">Period</label>
+      <select id="days" name="days">
+        <option value="30">30 days</option>
+        <option value="90" selected>90 days</option>
+        <option value="180">180 days</option>
+        <option value="365">365 days</option>
+      </select>
+      <button type="submit">Reload</button>
+    </form>
+  </header>
+
+  <main>
+    <section id="status" class="status" aria-live="polite">Loading metrics...</section>
+
+    <section class="summary" id="summary"></section>
+
+    <section class="trend" id="trend"></section>
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Monthly Evolution</h2>
+          <span>Changed lines</span>
+        </div>
+        <canvas id="monthlyChart"></canvas>
+      </article>
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Weekly Evolution</h2>
+          <span>Changed lines</span>
+        </div>
+        <canvas id="weeklyChart"></canvas>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Monthly Detail</h2>
+        <span>Period over period</span>
+      </div>
+      <div id="monthlyTable"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Weekly Detail</h2>
+        <span>Period over period</span>
+      </div>
+      <div id="weeklyTable"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
