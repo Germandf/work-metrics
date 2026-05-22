@@ -90,6 +90,69 @@ function Get-LocalRepos {
         }
 }
 
+function Get-ChangeCategory {
+    param([string]$Path)
+
+    $normalized = ($Path -replace "\\", "/").ToLowerInvariant()
+    $fileName = ($normalized -split "/")[-1]
+    $extension = if ($fileName -match "(\.[^.]+)$") { $Matches[1] } else { "" }
+
+    if ($normalized -match "(^|/)(bin|obj|dist|build|node_modules|packages|vendor|coverage|generated|swagger|openapi)(/|$)" -or
+        $fileName -match "\.(g|generated|designer)\." -or
+        $fileName -match "\.min\." -or
+        $fileName -in @("package-lock.json", "pnpm-lock.yaml", "yarn.lock", "composer.lock", "poetry.lock")) {
+        return "Mechanical"
+    }
+
+    if ($normalized -match "(^|/)(migrations)(/|$)" -or
+        $fileName -match "^\d{12,}_.+\.(cs|sql)$" -or
+        $fileName -match "model(snapshot)?\.cs$") {
+        return "Migration"
+    }
+
+    if ($normalized -match "(^|/)(test|tests|__tests__)(/|$)" -or
+        $fileName -match "(test|tests|spec)\.(cs|ts|tsx|js|jsx)$") {
+        return "Tests"
+    }
+
+    if ($extension -in @(".md", ".txt", ".adoc", ".rst")) {
+        return "Docs"
+    }
+
+    if ($extension -in @(".json", ".yml", ".yaml", ".xml", ".props", ".targets", ".config", ".editorconfig", ".sln", ".csproj", ".fsproj", ".vbproj")) {
+        return "Config"
+    }
+
+    if ($extension -in @(".cs", ".fs", ".vb", ".ts", ".tsx", ".js", ".jsx", ".razor", ".sql", ".ps1", ".sh", ".css", ".scss", ".html")) {
+        return "Core"
+    }
+
+    return "Other"
+}
+
+function Complete-CommitMetrics {
+    param([object]$Commit)
+
+    if ($null -eq $Commit) {
+        return
+    }
+
+    $commitLines = [int]$Commit.Additions + [int]$Commit.Deletions
+    $meaningfulLines = [int]$Commit.CoreLines + [int]$Commit.TestLines
+    $supportLines = [int]$Commit.MigrationLines + [int]$Commit.ConfigLines + [int]$Commit.DocLines
+    $mechanicalLines = [int]$Commit.MechanicalLines
+    $bulkLines = 0
+
+    if ($Commit.Files -ge 50 -and $Commit.Files -gt 0 -and ($commitLines / $Commit.Files) -le 8) {
+        $bulkLines = $commitLines
+    }
+
+    $Commit | Add-Member -NotePropertyName MeaningfulLines -NotePropertyValue $meaningfulLines -Force
+    $Commit | Add-Member -NotePropertyName SupportLines -NotePropertyValue $supportLines -Force
+    $Commit | Add-Member -NotePropertyName BulkLines -NotePropertyValue $bulkLines -Force
+    $Commit | Add-Member -NotePropertyName MechanicalOrBulkLines -NotePropertyValue ($mechanicalLines + $bulkLines) -Force
+}
+
 function Get-CommitStats {
     param(
         [object]$Repo,
@@ -110,6 +173,7 @@ function Get-CommitStats {
             foreach ($line in $log) {
                 if ($line.StartsWith("--COMMIT--")) {
                     if ($null -ne $current) {
+                        Complete-CommitMetrics $current
                         $commits += $current
                     }
                     $parts = $line.Substring(10).Split("|", 5)
@@ -128,6 +192,13 @@ function Get-CommitStats {
                         Additions = 0
                         Deletions = 0
                         Files = 0
+                        CoreLines = 0
+                        TestLines = 0
+                        MigrationLines = 0
+                        ConfigLines = 0
+                        DocLines = 0
+                        MechanicalLines = 0
+                        OtherLines = 0
                     }
                     continue
                 }
@@ -138,13 +209,27 @@ function Get-CommitStats {
 
                 $cols = $line -split "\t"
                 if ($cols.Count -ge 3 -and $cols[0] -match "^\d+$" -and $cols[1] -match "^\d+$") {
-                    $current.Additions += [int]$cols[0]
-                    $current.Deletions += [int]$cols[1]
+                    $added = [int]$cols[0]
+                    $deleted = [int]$cols[1]
+                    $changed = $added + $deleted
+                    $category = Get-ChangeCategory $cols[2]
+                    $current.Additions += $added
+                    $current.Deletions += $deleted
                     $current.Files++
+                    switch ($category) {
+                        "Core" { $current.CoreLines += $changed }
+                        "Tests" { $current.TestLines += $changed }
+                        "Migration" { $current.MigrationLines += $changed }
+                        "Config" { $current.ConfigLines += $changed }
+                        "Docs" { $current.DocLines += $changed }
+                        "Mechanical" { $current.MechanicalLines += $changed }
+                        default { $current.OtherLines += $changed }
+                    }
                 }
             }
 
             if ($null -ne $current) {
+                Complete-CommitMetrics $current
                 $commits += $current
             }
         }
@@ -210,6 +295,10 @@ function Get-PeriodStats {
                     Additions = ($_.Group | Measure-Object Additions -Sum).Sum
                     Deletions = ($_.Group | Measure-Object Deletions -Sum).Sum
                     Files = ($_.Group | Measure-Object Files -Sum).Sum
+                    MeaningfulLines = ($_.Group | Measure-Object MeaningfulLines -Sum).Sum
+                    SupportLines = ($_.Group | Measure-Object SupportLines -Sum).Sum
+                    MigrationLines = ($_.Group | Measure-Object MigrationLines -Sum).Sum
+                    MechanicalOrBulkLines = ($_.Group | Measure-Object MechanicalOrBulkLines -Sum).Sum
                     ActiveDays = @(($_.Group | Select-Object -ExpandProperty Date -Unique)).Count
                 }
             } |
@@ -605,6 +694,10 @@ $repoStats = @(
                 Additions = ($_.Group | Measure-Object Additions -Sum).Sum
                 Deletions = ($_.Group | Measure-Object Deletions -Sum).Sum
                 Files = ($_.Group | Measure-Object Files -Sum).Sum
+                MeaningfulLines = ($_.Group | Measure-Object MeaningfulLines -Sum).Sum
+                SupportLines = ($_.Group | Measure-Object SupportLines -Sum).Sum
+                MigrationLines = ($_.Group | Measure-Object MigrationLines -Sum).Sum
+                MechanicalOrBulkLines = ($_.Group | Measure-Object MechanicalOrBulkLines -Sum).Sum
             }
         } |
         Sort-Object Commits, Additions -Descending
@@ -620,6 +713,10 @@ $dailyStats = @(
                 Additions = ($_.Group | Measure-Object Additions -Sum).Sum
                 Deletions = ($_.Group | Measure-Object Deletions -Sum).Sum
                 Files = ($_.Group | Measure-Object Files -Sum).Sum
+                MeaningfulLines = ($_.Group | Measure-Object MeaningfulLines -Sum).Sum
+                SupportLines = ($_.Group | Measure-Object SupportLines -Sum).Sum
+                MigrationLines = ($_.Group | Measure-Object MigrationLines -Sum).Sum
+                MechanicalOrBulkLines = ($_.Group | Measure-Object MechanicalOrBulkLines -Sum).Sum
             }
         } |
         Sort-Object Date
@@ -682,6 +779,11 @@ $summary = [pscustomobject]@{
     Additions = ($commits | Measure-Object Additions -Sum).Sum
     Deletions = ($commits | Measure-Object Deletions -Sum).Sum
     FilesChanged = ($commits | Measure-Object Files -Sum).Sum
+    MeaningfulLines = ($commits | Measure-Object MeaningfulLines -Sum).Sum
+    SupportLines = ($commits | Measure-Object SupportLines -Sum).Sum
+    MigrationLines = ($commits | Measure-Object MigrationLines -Sum).Sum
+    MechanicalOrBulkLines = ($commits | Measure-Object MechanicalOrBulkLines -Sum).Sum
+    MechanicalRatioPercent = if ((($commits | Measure-Object Additions -Sum).Sum + ($commits | Measure-Object Deletions -Sum).Sum) -gt 0) { [Math]::Round(((($commits | Measure-Object MechanicalOrBulkLines -Sum).Sum) / ((($commits | Measure-Object Additions -Sum).Sum + ($commits | Measure-Object Deletions -Sum).Sum)) * 100), 1) } else { 0 }
     ActiveCommitDays = $activeDays
     MaxActiveDayStreak = $maxStreak
     ActiveWeeks = "$activeWeeks/$periodWeeks"
@@ -736,10 +838,10 @@ foreach ($property in $summary.PSObject.Properties) {
 }
 [void]$md.AppendLine()
 
-Write-MetricTable $md "Local Git Activity By Repository" $repoStats @("Repo", "Commits", "Additions", "Deletions", "Files")
-Write-MetricTable $md "Local Git Activity By Week" $weeklyStats @("Period", "LinesChanged", "LinesChangedDelta", "LinesChangedPercent", "Commits", "Additions", "Deletions", "Files", "ActiveDays")
-Write-MetricTable $md "Local Git Activity By Month" $monthlyStats @("Period", "LinesChanged", "LinesChangedDelta", "LinesChangedPercent", "Commits", "Additions", "Deletions", "Files", "ActiveDays")
-Write-MetricTable $md "Local Git Activity By Day" $dailyStats @("Date", "Commits", "Additions", "Deletions", "Files")
+Write-MetricTable $md "Local Git Activity By Repository" $repoStats @("Repo", "Commits", "Additions", "Deletions", "Files", "MeaningfulLines", "SupportLines", "MigrationLines", "MechanicalOrBulkLines")
+Write-MetricTable $md "Local Git Activity By Week" $weeklyStats @("Period", "LinesChanged", "LinesChangedDelta", "LinesChangedPercent", "Commits", "MeaningfulLines", "SupportLines", "MigrationLines", "MechanicalOrBulkLines", "Files", "ActiveDays")
+Write-MetricTable $md "Local Git Activity By Month" $monthlyStats @("Period", "LinesChanged", "LinesChangedDelta", "LinesChangedPercent", "Commits", "MeaningfulLines", "SupportLines", "MigrationLines", "MechanicalOrBulkLines", "Files", "ActiveDays")
+Write-MetricTable $md "Local Git Activity By Day" $dailyStats @("Date", "Commits", "Additions", "Deletions", "Files", "MeaningfulLines", "SupportLines", "MigrationLines", "MechanicalOrBulkLines")
 Write-MetricTable $md "Recent Authored PRs" $topPrs @("Repo", "number", "title", "state", "html_url")
 Write-MetricTable $md "Recent Issues Authored/Involved" $topIssues @("Repo", "number", "title", "state", "html_url")
 

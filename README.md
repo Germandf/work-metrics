@@ -43,6 +43,7 @@ The `out/` directory contains real user data and is ignored by Git.
 - Detected local repositories.
 - Local commits in the selected period.
 - Added lines, deleted lines, and changed files from `git log --numstat`.
+- Meaningful lines, support lines, migration lines, and mechanical/bulk lines.
 - Active days, first/last local commit, and busiest day.
 - Daily, weekly, and monthly evolution.
 - Longest active-day streak, active weeks, and consistency.
@@ -55,6 +56,8 @@ The `out/` directory contains real user data and is ignored by Git.
 ## Limitations
 
 GitHub does not expose actual time worked. Time-related metrics are approximations based on observable activity, such as active days and commit windows. Line counts can include generated files when repositories commit them.
+
+The dashboard keeps total activity and classified activity side by side. EF-style migrations are treated as support work, not discarded. Generated/vendor/build/lockfile changes are classified as mechanical. Large low-density changes are flagged as bulk, but still remain visible in the totals.
 
 Team metrics, rankings, and scores are not calculated because they require uniform access to all repositories and all users. This tool intentionally focuses on personal metrics to avoid incomplete or biased comparisons.
 

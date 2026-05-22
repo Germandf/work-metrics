@@ -130,11 +130,11 @@ function render(report) {
 
 function renderSummary(summary) {
   const metrics = [
-    ["Changed lines", (summary.Additions || 0) + (summary.Deletions || 0)],
+    ["Meaningful lines", summary.MeaningfulLines],
+    ["Support lines", `${valueOrFallback(summary.SupportLines)} incl. ${valueOrFallback(summary.MigrationLines)} migrations`],
+    ["Mechanical/bulk", `${valueOrFallback(summary.MechanicalOrBulkLines)} (${valueOrFallback(summary.MechanicalRatioPercent)}%)`],
     ["Commits", summary.Commits],
     ["PRs", `${summary.PullRequestsAuthored} created / ${summary.PullRequestsMerged} merged`],
-    ["Reviews", summary.PullRequestsReviewed],
-    ["Active days", `${summary.ActiveCommitDays} / streak ${summary.MaxActiveDayStreak}`],
     ["Merge speed", `${valueOrFallback(summary.PullRequestMedianMergeHours)}h median`]
   ];
 
@@ -154,7 +154,7 @@ function renderTrend(weekly, monthly) {
     return `<div class="trend-card">
       <div class="label">${label}</div>
       <div class="period">${row.Period}</div>
-      <div class="value">${fmt.format(row.LinesChanged || 0)} changed lines</div>
+      <div class="value">${fmt.format(row.MeaningfulLines || 0)} meaningful lines</div>
       <div class="delta ${css}">${formatDelta(row.LinesChangedDelta)} vs previous (${formatPercent(row.LinesChangedPercent)})</div>
     </div>`;
   }).join("");
@@ -162,13 +162,15 @@ function renderTrend(weekly, monthly) {
 
 function renderTable(id, rows) {
   document.getElementById(id).innerHTML = `<table>
-    <thead><tr><th>Period</th><th class="num">Changed lines</th><th class="num">Evolution</th><th class="num">Commits</th><th class="num">PR files</th></tr></thead>
+    <thead><tr><th>Period</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Total evolution</th><th class="num">Commits</th></tr></thead>
     <tbody>${rows.map(row => `<tr>
       <td>${row.Period}</td>
-      <td class="num">${fmt.format(row.LinesChanged || 0)}</td>
+      <td class="num">${fmt.format(row.MeaningfulLines || 0)}</td>
+      <td class="num">${fmt.format(row.SupportLines || 0)}</td>
+      <td class="num">${fmt.format(row.MigrationLines || 0)}</td>
+      <td class="num">${fmt.format(row.MechanicalOrBulkLines || 0)}</td>
       <td class="num ${deltaClass(row.LinesChangedDelta)}">${formatDelta(row.LinesChangedDelta)} (${formatPercent(row.LinesChangedPercent)})</td>
       <td class="num">${fmt.format(row.Commits || 0)}</td>
-      <td class="num">${fmt.format(row.Files || 0)}</td>
     </tr>`).join("")}</tbody>
   </table>`;
 }
@@ -185,7 +187,7 @@ function drawChart(canvas, rows, labelKey) {
   const pad = { left: 58, right: 18, top: 18, bottom: 48 };
   const width = rect.width - pad.left - pad.right;
   const height = rect.height - pad.top - pad.bottom;
-  const max = Math.max(1, ...rows.map(row => Number(row.LinesChanged || 0)));
+  const max = Math.max(1, ...rows.map(row => Number(row.MeaningfulLines || 0)));
   const step = rows.length > 1 ? width / (rows.length - 1) : width;
 
   ctx.font = "12px Segoe UI, Arial";
@@ -205,7 +207,7 @@ function drawChart(canvas, rows, labelKey) {
   ctx.beginPath();
   rows.forEach((row, index) => {
     const x = pad.left + (rows.length > 1 ? step * index : width / 2);
-    const y = pad.top + height - ((Number(row.LinesChanged || 0) / max) * height);
+    const y = pad.top + height - ((Number(row.MeaningfulLines || 0) / max) * height);
     if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
