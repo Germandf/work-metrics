@@ -5,15 +5,24 @@ const fmt = new Intl.NumberFormat();
 const form = document.getElementById("periodForm");
 const daysSelect = document.getElementById("days");
 const statusEl = document.getElementById("status");
+const savedPeriod = localStorage.getItem("workMetrics.period");
+if (savedPeriod && embeddedData[savedPeriod]) {
+  daysSelect.value = savedPeriod;
+}
+else {
+  const availablePeriods = Object.keys(embeddedData).sort((a, b) => Number(a) - Number(b));
+  if (availablePeriods.length > 0 && !embeddedData[daysSelect.value]) {
+    daysSelect.value = availablePeriods[Math.min(1, availablePeriods.length - 1)];
+  }
+}
 
 form.addEventListener("submit", event => {
   event.preventDefault();
-  location.reload();
+  renderSelectedPeriod();
 });
 
 daysSelect.addEventListener("change", () => {
-  setStatus(`Loading ${daysSelect.value} days...`);
-  setTimeout(() => renderPeriod(daysSelect.value), 80);
+  renderSelectedPeriod();
 });
 
 function setStatus(text) {
@@ -27,8 +36,14 @@ function renderPeriod(days) {
     return;
   }
   state.data = data;
+  localStorage.setItem("workMetrics.period", String(days));
   render(data);
-  setStatus(`Showing ${days} days. To refresh data, run build-dashboard.ps1 again.`);
+  setStatus(`Showing ${days} days. To update the source data, run build-dashboard.ps1 again.`);
+}
+
+function renderSelectedPeriod() {
+  setStatus(`Loading ${daysSelect.value} days...`);
+  window.requestAnimationFrame(() => renderPeriod(daysSelect.value));
 }
 
 function valueOrFallback(value, suffix = "") {
@@ -164,4 +179,4 @@ window.addEventListener("resize", () => {
   if (state.data) render(state.data);
 });
 
-renderPeriod(daysSelect.value);
+renderSelectedPeriod();
