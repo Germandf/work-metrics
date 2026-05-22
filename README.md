@@ -1,59 +1,59 @@
 # Work Metrics
 
-Genera un dashboard local de rendimiento usando tu usuario de GitHub autenticado con `gh` y los repos Git bajo el directorio indicado. No requiere servidor: genera un HTML autocontenido que se abre directo en el navegador.
+Local productivity dashboard for your GitHub user and local Git repositories. It does not require a server: it generates a self-contained HTML file that can be opened directly in the browser.
 
-## Uso
+## Usage
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -OpenReport
 ```
 
-Opciones utiles:
+Useful options:
 
 ```powershell
-# Cambiar periodo
+# Change embedded periods
 powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -Periods "30,90,180,365"
 
-# Cambiar raiz de repositorios
+# Change the repository root
 powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -Root C:\source\repos
 
-# Forzar usuario de GitHub
+# Force a GitHub user
 powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -User octocat
 
-# Abrir el reporte HTML al terminar
+# Generate a single-period report
 powershell -ExecutionPolicy Bypass -File .\work-metrics.ps1 -Days 30 -OpenReport
 ```
 
-## Salidas
+## Output
 
-- `out/dashboard.html`: dashboard autocontenido.
-- `out/work-metrics.md`: ultimo reporte Markdown generado.
-- `out/work-metrics.json`: ultimos datos crudos generados.
+- `out/dashboard.html`: self-contained dashboard.
+- `out/work-metrics.md`: latest generated Markdown report.
+- `out/work-metrics.json`: latest generated raw data.
 
-El directorio `out/` contiene datos reales del usuario y esta ignorado por Git.
+The `out/` directory contains real user data and is ignored by Git.
 
-## Que mide
+## Metrics
 
-- Repositorios locales detectados.
-- Commits locales del periodo.
-- Lineas agregadas, eliminadas y archivos modificados segun `git log --numstat`.
-- Dias activos, primer/ultimo commit local y dia con mas actividad.
-- Evolucion diaria, semanal y mensual.
-- Racha maxima de dias activos, semanas activas y consistencia.
-- Hora pico, porcentaje en horario laboral, commits fuera de horario y commits de fin de semana.
-- PRs creados, revisados e involucrados segun GitHub Search.
-- PRs mergeados, mediana de horas hasta merge y porcentaje de PRs mergeados en menos de 24h.
-- Issues creados, cerrados e involucrados segun GitHub Search.
-- Conversaciones comentadas por el usuario.
+- Detected local repositories.
+- Local commits in the selected period.
+- Added lines, deleted lines, and changed files from `git log --numstat`.
+- Active days, first/last local commit, and busiest day.
+- Daily, weekly, and monthly evolution.
+- Longest active-day streak, active weeks, and consistency.
+- Peak hour, work-hours percentage, out-of-hours commits, and weekend commits.
+- Authored, reviewed, and involved pull requests from GitHub Search.
+- Merged pull requests, median time to merge, and percentage merged under 24 hours.
+- Authored, closed, and involved issues from GitHub Search.
+- Threads commented by the user.
 
-## Limitaciones
+## Limitations
 
-GitHub no expone tiempo trabajado real. Las metricas de tiempo son aproximaciones basadas en actividad observable, como dias con commits y ventana de actividad. Las lineas modificadas pueden incluir archivos generados si el repo los versiona.
+GitHub does not expose actual time worked. Time-related metrics are approximations based on observable activity, such as active days and commit windows. Line counts can include generated files when repositories commit them.
 
-Las metricas de equipo, ranking o score no se calculan porque requieren acceso uniforme a todos los repos y a todos los usuarios. Esta herramienta prioriza metricas propias para evitar comparaciones incompletas o sesgadas.
+Team metrics, rankings, and scores are not calculated because they require uniform access to all repositories and all users. This tool intentionally focuses on personal metrics to avoid incomplete or biased comparisons.
 
-## Seguridad
+## Security
 
-El script no guarda tokens ni credenciales. Usa `gh` y la sesion autenticada localmente.
+The scripts do not store tokens or credentials. They use `gh` and the locally authenticated session.
 
-No versionar el directorio `out/`: puede incluir usuario, ruta local, nombres de repos, URLs/titulos de PRs e issues, commits y emails de autor. Para publicar la herramienta, trackear solo `work-metrics.ps1`, `README.md` y `.gitignore`.
+Do not commit `out/`: it can include user names, local paths, repository names, PR/issue URLs and titles, commits, and author emails. For publishing the tool, track only source files such as `work-metrics.ps1`, `build-dashboard.ps1`, `public/`, `README.md`, and `.gitignore`.
