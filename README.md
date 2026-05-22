@@ -8,11 +8,16 @@ Local productivity dashboard for your GitHub user and local Git repositories. It
 powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -OpenReport
 ```
 
+The generated dashboard is static. Switching periods in the UI uses data already embedded in `out/dashboard.html`; it does not call GitHub or start a server.
+
 Useful options:
 
 ```powershell
 # Change embedded periods
 powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -Periods "30,90,180,365"
+
+# Query GitHub again instead of using the local cache
+powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -Periods "30,90,180,365" -Refresh
 
 # Change the repository root
 powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -Root C:\source\repos
@@ -29,6 +34,7 @@ powershell -ExecutionPolicy Bypass -File .\work-metrics.ps1 -Days 30 -OpenReport
 - `out/dashboard.html`: self-contained dashboard.
 - `out/work-metrics.md`: latest generated Markdown report.
 - `out/work-metrics.json`: latest generated raw data.
+- `out/cache/metrics-{days}.json`: cached raw data per period, reused by default.
 
 The `out/` directory contains real user data and is ignored by Git.
 

@@ -3,6 +3,7 @@ param(
     [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
     [string]$OutDir = (Join-Path $PSScriptRoot "out"),
     [string]$User = "",
+    [switch]$Refresh,
     [switch]$OpenReport
 )
 
@@ -38,25 +39,35 @@ if ($periodValues.Count -eq 0) {
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+$cacheDir = Join-Path $OutDir "cache"
+New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
 
 $dashboardData = [ordered]@{}
 foreach ($period in $periodValues) {
-    Write-Host "Generating $period days..."
-    $args = @("-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "work-metrics.ps1"), "-Days", $period, "-Root", $Root, "-OutDir", $OutDir)
-    if (-not [string]::IsNullOrWhiteSpace($User)) {
-        $args += @("-User", $User)
+    $cachePath = Join-Path $cacheDir "metrics-$period.json"
+    if ((Test-Path $cachePath) -and -not $Refresh) {
+        Write-Host "Using cached $period days. Pass -Refresh to query GitHub again."
+        $dashboardData["$period"] = Get-Content -Path $cachePath -Raw | ConvertFrom-Json
     }
+    else {
+        Write-Host "Generating $period days..."
+        $args = @("-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "work-metrics.ps1"), "-Days", $period, "-Root", $Root, "-OutDir", $OutDir)
+        if (-not [string]::IsNullOrWhiteSpace($User)) {
+            $args += @("-User", $User)
+        }
 
-    & powershell @args | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to generate metrics for $period days."
-    }
+        & powershell @args | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to generate metrics for $period days."
+        }
 
-    $jsonPath = Join-Path $OutDir "work-metrics.json"
-    $dashboardData["$period"] = Get-Content -Path $jsonPath -Raw | ConvertFrom-Json
+        $jsonPath = Join-Path $OutDir "work-metrics.json"
+        Copy-Item -Path $jsonPath -Destination $cachePath -Force
+        $dashboardData["$period"] = Get-Content -Path $cachePath -Raw | ConvertFrom-Json
 
-    if ($period -ne $periodValues[-1]) {
-        Start-Sleep -Seconds 5
+        if ($period -ne $periodValues[-1]) {
+            Start-Sleep -Seconds 5
+        }
     }
 }
 

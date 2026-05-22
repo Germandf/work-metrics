@@ -5,7 +5,47 @@ const fmt = new Intl.NumberFormat();
 const form = document.getElementById("periodForm");
 const daysSelect = document.getElementById("days");
 const statusEl = document.getElementById("status");
-const savedPeriod = localStorage.getItem("workMetrics.period");
+
+function readStoredPeriod() {
+  try {
+    return localStorage.getItem("workMetrics.period");
+  }
+  catch {
+    return null;
+  }
+}
+
+function writeStoredPeriod(period) {
+  try {
+    localStorage.setItem("workMetrics.period", String(period));
+  }
+  catch {
+    // Some browsers block localStorage for file:// pages.
+  }
+}
+
+function readUrlPeriod() {
+  try {
+    return new URLSearchParams(window.location.search).get("days");
+  }
+  catch {
+    return null;
+  }
+}
+
+function writeUrlPeriod(period) {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("days", String(period));
+    history.replaceState(null, "", url);
+  }
+  catch {
+    // file:// history updates can be restricted in some browsers.
+  }
+}
+
+const urlPeriod = readUrlPeriod();
+const savedPeriod = urlPeriod || readStoredPeriod();
 if (savedPeriod && embeddedData[savedPeriod]) {
   daysSelect.value = savedPeriod;
 }
@@ -30,15 +70,22 @@ function setStatus(text) {
 }
 
 function renderPeriod(days) {
-  const data = embeddedData[String(days)];
+  try {
+    const data = embeddedData[String(days)];
   if (!data) {
-    setStatus(`No embedded data for ${days} days. Rebuild the dashboard.`);
+      const available = Object.keys(embeddedData).sort((a, b) => Number(a) - Number(b)).join(", ");
+      setStatus(`No data embedded for ${days} days. Available: ${available || "none"}. Run build-dashboard.ps1 to add it.`);
     return;
   }
   state.data = data;
-  localStorage.setItem("workMetrics.period", String(days));
+    writeStoredPeriod(days);
+    writeUrlPeriod(days);
   render(data);
   setStatus(`Showing ${days} days. To update the source data, run build-dashboard.ps1 again.`);
+  }
+  catch (error) {
+    setStatus(`Could not render ${days} days: ${error.message}`);
+  }
 }
 
 function renderSelectedPeriod() {
@@ -179,4 +226,9 @@ window.addEventListener("resize", () => {
   if (state.data) render(state.data);
 });
 
-renderSelectedPeriod();
+try {
+  renderSelectedPeriod();
+}
+catch (error) {
+  setStatus(`Could not initialize dashboard: ${error.message}`);
+}
