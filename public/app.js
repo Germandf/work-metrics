@@ -160,10 +160,9 @@ function filterLeadingPartialMonth(rows, since) {
 
 function renderSummary(summary) {
   const metrics = [
-    ["Commits", summary.Commits],
-    ["PRs", `${summary.PullRequestsAuthored} created / ${summary.PullRequestsMerged} merged`],
-    ["Reviews", summary.PullRequestsReviewed],
-    ["Merge speed", `${valueOrFallback(summary.PullRequestMedianMergeHours)}h median`]
+    ["Activity", `${summary.Commits} commits / ${summary.PullRequestsAuthored} PRs / ${summary.PullRequestsReviewed} reviews`],
+    ["Merged PRs", `${summary.PullRequestsMerged} merged / ${summary.PullRequestsMergedUnder24Hours}% <24h`],
+    ["Time to merge", `${valueOrFallback(summary.PullRequestMedianMergeHours)}h median from PR creation to merge`]
   ];
 
   document.getElementById("summary").innerHTML = metrics.map(([label, value]) =>
@@ -241,9 +240,10 @@ function renderReconciliation(report) {
 
 function renderTable(id, rows) {
   document.getElementById(id).innerHTML = `<table>
-    <thead><tr><th>Period</th><th class="num">Meaningful</th><th class="num">Meaningful evolution</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
+    <thead><tr><th>Period</th><th class="num">Total</th><th class="num">Meaningful</th><th class="num">Meaningful evolution</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
     <tbody>${rows.map(row => `<tr>
       <td>${row.Period}</td>
+      <td class="num">${fmt.format((row.MeaningfulLines || 0) + (row.SupportLines || 0) + (row.MechanicalOrBulkLines || 0))}</td>
       <td class="num">${fmt.format(row.MeaningfulLines || 0)}</td>
       <td class="num ${deltaClass(row.MeaningfulLinesDelta)}">${formatDelta(row.MeaningfulLinesDelta)} (${formatPercent(row.MeaningfulLinesPercent)})</td>
       <td class="num">${fmt.format(row.SupportLines || 0)}</td>
