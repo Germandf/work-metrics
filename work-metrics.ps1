@@ -163,8 +163,9 @@ function Get-CommitStats {
     $commits = @()
     Push-Location $Repo.Path
     try {
+        & git fetch --all --prune --quiet 2>$null
         foreach ($author in $AuthorPatterns) {
-            $log = & git log "--since=$($Since.ToString("yyyy-MM-ddTHH:mm:sszzz"))" "--author=$author" --date=iso-strict --numstat --pretty=format:"--COMMIT--%H|%ad|%an|%ae|%s" 2>$null
+            $log = & git log --all "--since=$($Since.ToString("yyyy-MM-ddTHH:mm:sszzz"))" "--author=$author" --date=iso-strict --numstat --pretty=format:"--COMMIT--%H|%ad|%an|%ae|%s" 2>$null
             if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($log)) {
                 continue
             }
