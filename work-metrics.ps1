@@ -59,11 +59,49 @@ function Get-RepoSlug {
         return ""
     }
 
-    if ($Url -match "github\.com[:/](?<owner>[^/]+)/(?<repo>[^/.]+)") {
+    if ($Url -match "github\.com[:/](?<owner>[^/]+)/(?<repo>[^#?]+?)(?:\.git)?$") {
         return "$($Matches.owner)/$($Matches.repo)"
     }
 
     return $Url
+}
+
+$script:CanonicalSlugCache = @{}
+
+function Resolve-CanonicalRepoSlug {
+    param(
+        [string]$OriginSlug,
+        [string]$UpstreamSlug
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($UpstreamSlug)) {
+        return $UpstreamSlug
+    }
+
+    if ([string]::IsNullOrWhiteSpace($OriginSlug)) {
+        return ""
+    }
+
+    if ($script:CanonicalSlugCache.ContainsKey($OriginSlug)) {
+        return $script:CanonicalSlugCache[$OriginSlug]
+    }
+
+    $canonical = $OriginSlug
+    try {
+        $repoJson = & gh repo view $OriginSlug --json isFork,parent,nameWithOwner 2>$null
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($repoJson)) {
+            $repoInfo = $repoJson | ConvertFrom-Json
+            if ($null -ne $repoInfo -and $repoInfo.isFork -eq $true -and $null -ne $repoInfo.parent -and -not [string]::IsNullOrWhiteSpace($repoInfo.parent.nameWithOwner)) {
+                $canonical = $repoInfo.parent.nameWithOwner
+            }
+        }
+    }
+    catch {
+        $canonical = $OriginSlug
+    }
+
+    $script:CanonicalSlugCache[$OriginSlug] = $canonical
+    return $canonical
 }
 
 function Get-LocalRepos {
@@ -72,20 +110,31 @@ function Get-LocalRepos {
     Get-ChildItem -Path $RootPath -Directory -Force |
         Where-Object { Test-Path (Join-Path $_.FullName ".git") } |
         ForEach-Object {
-            $remote = ""
+            $origin = ""
+            $upstream = ""
             Push-Location $_.FullName
             try {
-                $remote = (& git remote get-url origin 2>$null)
+                $remotes = @(& git remote)
+                if ($remotes -contains "origin") {
+                    $origin = (& git remote get-url origin)
+                }
+                if ($remotes -contains "upstream") {
+                    $upstream = (& git remote get-url upstream)
+                }
             }
             finally {
                 Pop-Location
             }
 
+            $originSlug = Get-RepoSlug $origin
+            $upstreamSlug = Get-RepoSlug $upstream
+            $canonicalSlug = Resolve-CanonicalRepoSlug $originSlug $upstreamSlug
+
             [pscustomobject]@{
                 Name = $_.Name
                 Path = $_.FullName
-                Remote = $remote
-                Slug = Get-RepoSlug $remote
+                Remote = $origin
+                Slug = $canonicalSlug
             }
         }
 }
@@ -316,11 +365,15 @@ function Add-TrendStats {
         $previousLinesChanged = if ($null -eq $previous) { $null } else { [int]$previous.Additions + [int]$previous.Deletions }
         $delta = if ($null -eq $previousLinesChanged) { $null } else { $linesChanged - $previousLinesChanged }
         $changePercent = if ($null -eq $previousLinesChanged -or $previousLinesChanged -eq 0) { $null } else { [Math]::Round(($delta / $previousLinesChanged) * 100, 1) }
+        $meaningfulDelta = if ($null -eq $previous) { $null } else { [int]$row.MeaningfulLines - [int]$previous.MeaningfulLines }
+        $meaningfulPercent = if ($null -eq $previous -or [int]$previous.MeaningfulLines -eq 0) { $null } else { [Math]::Round(($meaningfulDelta / [int]$previous.MeaningfulLines) * 100, 1) }
 
         $row | Add-Member -NotePropertyName LinesChanged -NotePropertyValue $linesChanged -Force
         $row | Add-Member -NotePropertyName PreviousLinesChanged -NotePropertyValue $previousLinesChanged -Force
         $row | Add-Member -NotePropertyName LinesChangedDelta -NotePropertyValue $delta -Force
         $row | Add-Member -NotePropertyName LinesChangedPercent -NotePropertyValue $changePercent -Force
+        $row | Add-Member -NotePropertyName MeaningfulLinesDelta -NotePropertyValue $meaningfulDelta -Force
+        $row | Add-Member -NotePropertyName MeaningfulLinesPercent -NotePropertyValue $meaningfulPercent -Force
 
         $previous = $row
     }
@@ -674,6 +727,7 @@ $commits = @()
 foreach ($repo in $repos) {
     $commits += @(Get-CommitStats $repo $since $GitAuthorPatterns)
 }
+$commits = @($commits | Sort-Object Slug, Sha -Unique)
 
 $prsAuthored = @(Invoke-GhSearch "issues" "type:pr author:$User updated:>=$sinceDate" 300)
 $prsMentioned = @(Invoke-GhSearch "issues" "type:pr involves:$User -author:$User updated:>=$sinceDate" 300)
@@ -687,7 +741,7 @@ $reviews = @(Invoke-GhSearch "issues" "type:pr reviewed-by:$User updated:>=$sinc
 
 $repoStats = @(
     $commits |
-        Group-Object Repo |
+        Group-Object Slug |
         ForEach-Object {
             [pscustomobject]@{
                 Repo = $_.Name
@@ -738,9 +792,9 @@ $firstCommitDate = if ($commitDates.Count -gt 0) { $commitDates[0].ToString("yyy
 $lastCommitDate = if ($commitDates.Count -gt 0) { $commitDates[-1].ToString("yyyy-MM-dd") } else { "" }
 $activeDays = @($dailyStats | Where-Object { $_.Commits -gt 0 }).Count
 $busiestDay = @($dailyStats | Sort-Object Commits, Additions -Descending | Select-Object -First 1)
-$periodWeeks = [Math]::Max(1, [Math]::Ceiling($Days / 7))
+$periodWeeks = @($weeklyStats).Count
 $activeWeeks = @($weeklyStats | Where-Object { $_.Commits -gt 0 }).Count
-$consistencyPercent = [Math]::Round(($activeWeeks / $periodWeeks) * 100, 0)
+$consistencyPercent = if ($periodWeeks -gt 0) { [Math]::Round(($activeWeeks / $periodWeeks) * 100, 0) } else { 0 }
 $maxStreak = Get-MaxDateStreak @($dailyStats | Select-Object -ExpandProperty Date)
 $peakHourGroup = @($commits | Group-Object Hour | Sort-Object Count -Descending | Select-Object -First 1)
 $peakHour = if ($peakHourGroup.Count -gt 0) { "{0:00}:00" -f [int]$peakHourGroup[0].Name } else { "" }
@@ -784,6 +838,7 @@ $summary = [pscustomobject]@{
     SupportLines = ($commits | Measure-Object SupportLines -Sum).Sum
     MigrationLines = ($commits | Measure-Object MigrationLines -Sum).Sum
     MechanicalOrBulkLines = ($commits | Measure-Object MechanicalOrBulkLines -Sum).Sum
+    OutsideMeaningfulLines = (($commits | Measure-Object SupportLines -Sum).Sum + ($commits | Measure-Object MechanicalOrBulkLines -Sum).Sum)
     MechanicalRatioPercent = if ((($commits | Measure-Object Additions -Sum).Sum + ($commits | Measure-Object Deletions -Sum).Sum) -gt 0) { [Math]::Round(((($commits | Measure-Object MechanicalOrBulkLines -Sum).Sum) / ((($commits | Measure-Object Additions -Sum).Sum + ($commits | Measure-Object Deletions -Sum).Sum)) * 100), 1) } else { 0 }
     ActiveCommitDays = $activeDays
     MaxActiveDayStreak = $maxStreak

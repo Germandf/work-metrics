@@ -164,6 +164,15 @@ th, td {
 
 th { color: var(--muted); font-weight: 650; }
 .num { text-align: right; }
+.note {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.total-row {
+  font-weight: 750;
+  background: #f8fafc;
+}
 
 @media (max-width: 900px) {
   .app-header { align-items: flex-start; flex-direction: column; }

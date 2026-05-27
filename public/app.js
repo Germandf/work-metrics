@@ -124,12 +124,13 @@ function deltaClass(value) {
 
 function render(report) {
   const summary = report.Summary;
-  const monthlyRows = report.Monthly;
+  const monthlyRows = filterLeadingPartialMonth(report.Monthly, summary.Since);
   const weeklyRows = filterPeriods(report.Weekly, "week", summary.GeneratedAt);
   document.getElementById("subtitle").textContent = `${summary.User} · ${summary.Since.slice(0, 10)} to ${summary.GeneratedAt.slice(0, 10)} · ${summary.Days} days`;
 
   renderSummary(summary);
   renderTrend(weeklyRows, monthlyRows);
+  renderReconciliation(report);
   drawChart(document.getElementById("monthlyChart"), monthlyRows, "Period");
   drawChart(document.getElementById("weeklyChart"), weeklyRows, "Period");
   renderRepoTable(report.Repositories);
@@ -148,9 +149,18 @@ function filterPeriods(rows, type, generatedAt) {
   });
 }
 
+function filterLeadingPartialMonth(rows, since) {
+  if (!rows.length) return rows;
+  const sinceDate = new Date(`${since.slice(0, 10)}T00:00:00`);
+  if (sinceDate.getDate() === 1) return rows;
+  const partialPeriod = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, "0")}`;
+  return rows.filter(row => row.Period !== partialPeriod);
+}
+
 function renderSummary(summary) {
   const metrics = [
     ["Meaningful lines", summary.MeaningfulLines],
+    ["Outside meaningful", `${valueOrFallback(summary.OutsideMeaningfulLines)} support/mechanical`],
     ["Support lines", `${valueOrFallback(summary.SupportLines)} incl. ${valueOrFallback(summary.MigrationLines)} migrations`],
     ["Mechanical/bulk", `${valueOrFallback(summary.MechanicalOrBulkLines)} (${valueOrFallback(summary.MechanicalRatioPercent)}%)`],
     ["Commits", summary.Commits],
@@ -170,39 +180,86 @@ function renderTrend(weekly, monthly) {
   ].filter(([, row]) => row);
 
   document.getElementById("trend").innerHTML = cards.map(([label, row]) => {
-    const css = deltaClass(row.LinesChangedDelta);
+    const css = deltaClass(row.MeaningfulLinesDelta);
     return `<div class="trend-card">
       <div class="label">${label}</div>
       <div class="period">${row.Period}</div>
       <div class="value">${fmt.format(row.MeaningfulLines || 0)} meaningful lines</div>
-      <div class="delta ${css}">${formatDelta(row.LinesChangedDelta)} vs previous (${formatPercent(row.LinesChangedPercent)})</div>
+      <div class="delta ${css}">${formatDelta(row.MeaningfulLinesDelta)} vs previous (${formatPercent(row.MeaningfulLinesPercent)})</div>
     </div>`;
   }).join("");
 }
 
+function sumRows(rows, key) {
+  return rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+}
+
+function renderReconciliation(report) {
+  const rows = [
+    ["Summary", report.Summary.MeaningfulLines, report.Summary.SupportLines, report.Summary.MechanicalOrBulkLines, report.Summary.Commits],
+    ["Monthly detail", sumRows(report.Monthly, "MeaningfulLines"), sumRows(report.Monthly, "SupportLines"), sumRows(report.Monthly, "MechanicalOrBulkLines"), sumRows(report.Monthly, "Commits")],
+    ["Weekly detail", sumRows(report.Weekly, "MeaningfulLines"), sumRows(report.Weekly, "SupportLines"), sumRows(report.Weekly, "MechanicalOrBulkLines"), sumRows(report.Weekly, "Commits")],
+    ["Repository participation", sumRows(report.Repositories, "MeaningfulLines"), sumRows(report.Repositories, "SupportLines"), sumRows(report.Repositories, "MechanicalOrBulkLines"), sumRows(report.Repositories, "Commits")]
+  ];
+
+  document.getElementById("reconciliation").innerHTML = `<table>
+    <thead><tr><th>Source</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
+    <tbody>${rows.map(row => `<tr>
+      <td>${row[0]}</td>
+      <td class="num">${fmt.format(row[1] || 0)}</td>
+      <td class="num">${fmt.format(row[2] || 0)}</td>
+      <td class="num">${fmt.format(row[3] || 0)}</td>
+      <td class="num">${fmt.format(row[4] || 0)}</td>
+    </tr>`).join("")}</tbody>
+  </table>
+  <p class="note">Line metrics are calculated from authored commits across fetched Git refs. PR counts come from GitHub Search and are shown separately.</p>`;
+}
+
 function renderTable(id, rows) {
   document.getElementById(id).innerHTML = `<table>
-    <thead><tr><th>Period</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Total evolution</th><th class="num">Commits</th></tr></thead>
+    <thead><tr><th>Period</th><th class="num">Meaningful</th><th class="num">Meaningful evolution</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
     <tbody>${rows.map(row => `<tr>
       <td>${row.Period}</td>
       <td class="num">${fmt.format(row.MeaningfulLines || 0)}</td>
+      <td class="num ${deltaClass(row.MeaningfulLinesDelta)}">${formatDelta(row.MeaningfulLinesDelta)} (${formatPercent(row.MeaningfulLinesPercent)})</td>
       <td class="num">${fmt.format(row.SupportLines || 0)}</td>
       <td class="num">${fmt.format(row.MigrationLines || 0)}</td>
       <td class="num">${fmt.format(row.MechanicalOrBulkLines || 0)}</td>
-      <td class="num ${deltaClass(row.LinesChangedDelta)}">${formatDelta(row.LinesChangedDelta)} (${formatPercent(row.LinesChangedPercent)})</td>
       <td class="num">${fmt.format(row.Commits || 0)}</td>
     </tr>`).join("")}</tbody>
   </table>`;
 }
 
 function renderRepoTable(repositories) {
-  const rows = [...repositories]
+  const sortedRows = [...repositories]
     .sort((a, b) => (b.MeaningfulLines || 0) - (a.MeaningfulLines || 0))
-    .slice(0, 12);
+  const visibleRows = sortedRows.slice(0, 12);
+  const hiddenRows = sortedRows.slice(12);
+  const rows = [...visibleRows];
+
+  if (hiddenRows.length > 0) {
+    rows.push({
+      Repo: `Other repositories (${hiddenRows.length})`,
+      MeaningfulLines: sumRows(hiddenRows, "MeaningfulLines"),
+      SupportLines: sumRows(hiddenRows, "SupportLines"),
+      MigrationLines: sumRows(hiddenRows, "MigrationLines"),
+      MechanicalOrBulkLines: sumRows(hiddenRows, "MechanicalOrBulkLines"),
+      Commits: sumRows(hiddenRows, "Commits")
+    });
+  }
+
+  rows.push({
+    Repo: "Total",
+    MeaningfulLines: sumRows(sortedRows, "MeaningfulLines"),
+    SupportLines: sumRows(sortedRows, "SupportLines"),
+    MigrationLines: sumRows(sortedRows, "MigrationLines"),
+    MechanicalOrBulkLines: sumRows(sortedRows, "MechanicalOrBulkLines"),
+    Commits: sumRows(sortedRows, "Commits")
+  });
 
   document.getElementById("repoTable").innerHTML = `<table>
     <thead><tr><th>Repository</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
-    <tbody>${rows.map(row => `<tr>
+    <tbody>${rows.map(row => `<tr class="${row.Repo === "Total" ? "total-row" : ""}">
       <td>${row.Repo}</td>
       <td class="num">${fmt.format(row.MeaningfulLines || 0)}</td>
       <td class="num">${fmt.format(row.SupportLines || 0)}</td>
@@ -254,6 +311,17 @@ function drawChart(canvas, rows, labelKey) {
     if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
+
+  ctx.fillStyle = "#111827";
+  ctx.font = "12px Segoe UI, Arial";
+  rows.forEach((row, index) => {
+    const x = pad.left + (rows.length > 1 ? step * index : width / 2);
+    const y = pad.top + height - (((Number(row.MeaningfulLines || 0) - yMin) / (yMax - yMin)) * height);
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText(fmt.format(row.MeaningfulLines || 0), x + 6, Math.max(14, y - 8));
+  });
 
   const labelEvery = Math.max(1, Math.ceil(rows.length / 8));
   rows.forEach((row, index) => {
