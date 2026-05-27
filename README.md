@@ -10,6 +10,8 @@ powershell -ExecutionPolicy Bypass -File .\build-dashboard.ps1 -OpenReport
 
 The generated dashboard is static. Switching periods in the UI uses data already embedded in `out/dashboard.html`; it does not call GitHub or start a server.
 
+Running `build-dashboard.ps1` without `-Refresh` rebuilds the HTML from `out/cache/metrics-{days}.json`, so UI-only changes do not spend GitHub API calls.
+
 Useful options:
 
 ```powershell

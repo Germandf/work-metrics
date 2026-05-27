@@ -307,7 +307,7 @@ function drawChart(canvas, rows, labelKey) {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, rect.width, rect.height);
 
-  const pad = { left: 58, right: 18, top: 18, bottom: 48 };
+  const pad = { left: 68, right: 72, top: 34, bottom: 54 };
   const width = rect.width - pad.left - pad.right;
   const height = rect.height - pad.top - pad.bottom;
   const values = rows.map(row => Number(row.MeaningfulLines || 0));
@@ -319,6 +319,7 @@ function drawChart(canvas, rows, labelKey) {
   const step = rows.length > 1 ? width / (rows.length - 1) : width;
 
   ctx.font = "12px Segoe UI, Arial";
+  ctx.textBaseline = "alphabetic";
   ctx.strokeStyle = "#d9dee8";
   ctx.fillStyle = "#667085";
   for (let i = 0; i <= 4; i++) {
@@ -345,10 +346,18 @@ function drawChart(canvas, rows, labelKey) {
   rows.forEach((row, index) => {
     const x = pad.left + (rows.length > 1 ? step * index : width / 2);
     const y = pad.top + height - (((Number(row.MeaningfulLines || 0) - yMin) / (yMax - yMin)) * height);
+    const label = fmt.format(row.MeaningfulLines || 0);
+    const labelWidth = ctx.measureText(label).width;
+    let labelX = x + 7;
+    let labelY = y - 8;
+    if (labelX + labelWidth > rect.width - 8) labelX = x - labelWidth - 7;
+    if (labelX < pad.left) labelX = pad.left;
+    if (labelY < 14) labelY = y + 16;
+    if (labelY > pad.top + height - 6) labelY = y - 10;
     ctx.beginPath();
     ctx.arc(x, y, 3, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillText(fmt.format(row.MeaningfulLines || 0), x + 6, Math.max(14, y - 8));
+    ctx.fillText(label, labelX, labelY);
   });
 
   const labelEvery = Math.max(1, Math.ceil(rows.length / 8));
@@ -356,9 +365,12 @@ function drawChart(canvas, rows, labelKey) {
     if (index % labelEvery !== 0 && index !== rows.length - 1) return;
     const x = pad.left + (rows.length > 1 ? step * index : width / 2);
     ctx.save();
-    ctx.translate(x, pad.top + height + 18);
+    const label = String(row[labelKey]);
+    const labelWidth = ctx.measureText(label).width;
+    const safeX = Math.min(Math.max(x, pad.left + 4), rect.width - pad.right + 22);
+    ctx.translate(safeX, pad.top + height + 20);
     ctx.rotate(-0.45);
-    ctx.fillText(row[labelKey], 0, 0);
+    ctx.fillText(label, -Math.min(labelWidth * 0.35, 22), 0);
     ctx.restore();
   });
 }
