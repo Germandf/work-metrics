@@ -39,6 +39,20 @@ p, .panel-header span, .status { color: var(--muted); }
   gap: 10px;
 }
 
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+}
+
 select, button {
   height: 38px;
   border: 1px solid var(--line);

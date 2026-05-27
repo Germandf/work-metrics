@@ -20,6 +20,10 @@
         <option value="180">180 days</option>
         <option value="365">365 days</option>
       </select>
+      <label class="check">
+        <input id="includePartial" type="checkbox">
+        Include current week
+      </label>
       <button type="submit">Apply</button>
     </form>
   </header>
@@ -46,6 +50,14 @@
         </div>
         <canvas id="weeklyChart"></canvas>
       </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>Repository Participation</h2>
+        <span>By meaningful lines</span>
+      </div>
+      <div id="repoTable"></div>
     </section>
 
     <section class="panel">

@@ -5,6 +5,7 @@ const fmt = new Intl.NumberFormat();
 const form = document.getElementById("periodForm");
 const daysSelect = document.getElementById("days");
 const statusEl = document.getElementById("status");
+const includePartial = document.getElementById("includePartial");
 
 function readStoredPeriod() {
   try {
@@ -65,6 +66,10 @@ daysSelect.addEventListener("change", () => {
   renderSelectedPeriod();
 });
 
+includePartial.addEventListener("change", () => {
+  renderSelectedPeriod();
+});
+
 function setStatus(text) {
   statusEl.textContent = text;
 }
@@ -78,10 +83,11 @@ function renderPeriod(days) {
     return;
   }
   state.data = data;
-    writeStoredPeriod(days);
+  writeStoredPeriod(days);
     writeUrlPeriod(days);
   render(data);
-  setStatus(`Showing ${days} days. To update the source data, run build-dashboard.ps1 again.`);
+    const scope = includePartial.checked ? "including current week" : "excluding the current partial week";
+    setStatus(`Showing ${days} days, ${scope}. To update the source data, run build-dashboard.ps1 again.`);
   }
   catch (error) {
     setStatus(`Could not render ${days} days: ${error.message}`);
@@ -118,14 +124,28 @@ function deltaClass(value) {
 
 function render(report) {
   const summary = report.Summary;
+  const monthlyRows = report.Monthly;
+  const weeklyRows = filterPeriods(report.Weekly, "week", summary.GeneratedAt);
   document.getElementById("subtitle").textContent = `${summary.User} · ${summary.Since.slice(0, 10)} to ${summary.GeneratedAt.slice(0, 10)} · ${summary.Days} days`;
 
   renderSummary(summary);
-  renderTrend(report.Weekly, report.Monthly);
-  drawChart(document.getElementById("monthlyChart"), report.Monthly, "Period");
-  drawChart(document.getElementById("weeklyChart"), report.Weekly, "Period");
-  renderTable("monthlyTable", report.Monthly);
-  renderTable("weeklyTable", report.Weekly);
+  renderTrend(weeklyRows, monthlyRows);
+  drawChart(document.getElementById("monthlyChart"), monthlyRows, "Period");
+  drawChart(document.getElementById("weeklyChart"), weeklyRows, "Period");
+  renderRepoTable(report.Repositories);
+  renderTable("monthlyTable", monthlyRows);
+  renderTable("weeklyTable", weeklyRows);
+}
+
+function filterPeriods(rows, type, generatedAt) {
+  if (includePartial.checked || type !== "week") return rows;
+  const generatedDate = new Date(`${generatedAt.slice(0, 10)}T00:00:00`);
+  return rows.filter(row => {
+    const start = new Date(`${row.Period}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    return generatedDate >= end;
+  });
 }
 
 function renderSummary(summary) {
@@ -175,6 +195,24 @@ function renderTable(id, rows) {
   </table>`;
 }
 
+function renderRepoTable(repositories) {
+  const rows = [...repositories]
+    .sort((a, b) => (b.MeaningfulLines || 0) - (a.MeaningfulLines || 0))
+    .slice(0, 12);
+
+  document.getElementById("repoTable").innerHTML = `<table>
+    <thead><tr><th>Repository</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
+    <tbody>${rows.map(row => `<tr>
+      <td>${row.Repo}</td>
+      <td class="num">${fmt.format(row.MeaningfulLines || 0)}</td>
+      <td class="num">${fmt.format(row.SupportLines || 0)}</td>
+      <td class="num">${fmt.format(row.MigrationLines || 0)}</td>
+      <td class="num">${fmt.format(row.MechanicalOrBulkLines || 0)}</td>
+      <td class="num">${fmt.format(row.Commits || 0)}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+
 function drawChart(canvas, rows, labelKey) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
@@ -187,7 +225,12 @@ function drawChart(canvas, rows, labelKey) {
   const pad = { left: 58, right: 18, top: 18, bottom: 48 };
   const width = rect.width - pad.left - pad.right;
   const height = rect.height - pad.top - pad.bottom;
-  const max = Math.max(1, ...rows.map(row => Number(row.MeaningfulLines || 0)));
+  const values = rows.map(row => Number(row.MeaningfulLines || 0));
+  const maxValue = Math.max(1, ...values);
+  const minValue = Math.min(...values);
+  const range = Math.max(1, maxValue - minValue);
+  const yMin = minValue > 0 ? Math.max(0, minValue - range * 0.15) : 0;
+  const yMax = maxValue + range * 0.10;
   const step = rows.length > 1 ? width / (rows.length - 1) : width;
 
   ctx.font = "12px Segoe UI, Arial";
@@ -199,7 +242,7 @@ function drawChart(canvas, rows, labelKey) {
     ctx.moveTo(pad.left, y);
     ctx.lineTo(pad.left + width, y);
     ctx.stroke();
-    ctx.fillText(fmt.format(Math.round(max * i / 4)), 8, y + 4);
+    ctx.fillText(fmt.format(Math.round(yMin + ((yMax - yMin) * i / 4))), 8, y + 4);
   }
 
   ctx.strokeStyle = "#2563eb";
@@ -207,7 +250,7 @@ function drawChart(canvas, rows, labelKey) {
   ctx.beginPath();
   rows.forEach((row, index) => {
     const x = pad.left + (rows.length > 1 ? step * index : width / 2);
-    const y = pad.top + height - ((Number(row.MeaningfulLines || 0) / max) * height);
+    const y = pad.top + height - (((Number(row.MeaningfulLines || 0) - yMin) / (yMax - yMin)) * height);
     if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.stroke();
