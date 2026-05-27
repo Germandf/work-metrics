@@ -235,14 +235,8 @@ function renderReconciliation(report) {
   const badgeText = matches ? "Totals match" : "Totals differ";
 
   document.getElementById("reconciliation").innerHTML = `
-    <div class="reconcile">
-      <span class="badge ${badgeClass}">${badgeText}</span>
-      <span>Meaningful ${fmt.format(summary.MeaningfulLines || 0)}</span>
-      <span>Support ${fmt.format(summary.SupportLines || 0)}</span>
-      <span>Mechanical/bulk ${fmt.format(summary.MechanicalOrBulkLines || 0)}</span>
-      <span>Commits ${fmt.format(summary.Commits || 0)}</span>
-    </div>
-    <p class="note">Monthly, weekly, and repository totals are checked against the summary. PR counts come from GitHub Search and are shown separately.</p>`;
+    <span class="badge ${badgeClass}">${badgeText}</span>
+    <span>Monthly, weekly, and repository totals are checked against the summary. PR counts come from GitHub Search.</span>`;
 }
 
 function renderTable(id, rows) {

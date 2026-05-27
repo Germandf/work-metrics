@@ -207,12 +207,14 @@ th { color: var(--muted); font-weight: 650; }
   color: var(--muted);
   font-size: 13px;
 }
-.reconcile {
+.reconciliation-note {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 18px;
   font-size: 14px;
+  color: var(--muted);
+  min-height: 30px;
 }
 .badge {
   display: inline-flex;
