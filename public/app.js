@@ -223,24 +223,26 @@ function sumRows(rows, key) {
 }
 
 function renderReconciliation(report) {
-  const rows = [
-    ["Summary", report.Summary.MeaningfulLines, report.Summary.SupportLines, report.Summary.MechanicalOrBulkLines, report.Summary.Commits],
-    ["Monthly detail", sumRows(report.Monthly, "MeaningfulLines"), sumRows(report.Monthly, "SupportLines"), sumRows(report.Monthly, "MechanicalOrBulkLines"), sumRows(report.Monthly, "Commits")],
-    ["Weekly detail", sumRows(report.Weekly, "MeaningfulLines"), sumRows(report.Weekly, "SupportLines"), sumRows(report.Weekly, "MechanicalOrBulkLines"), sumRows(report.Weekly, "Commits")],
-    ["Repository participation", sumRows(report.Repositories, "MeaningfulLines"), sumRows(report.Repositories, "SupportLines"), sumRows(report.Repositories, "MechanicalOrBulkLines"), sumRows(report.Repositories, "Commits")]
+  const summary = report.Summary;
+  const checks = [
+    [sumRows(report.Monthly, "MeaningfulLines"), sumRows(report.Monthly, "SupportLines"), sumRows(report.Monthly, "MechanicalOrBulkLines"), sumRows(report.Monthly, "Commits")],
+    [sumRows(report.Weekly, "MeaningfulLines"), sumRows(report.Weekly, "SupportLines"), sumRows(report.Weekly, "MechanicalOrBulkLines"), sumRows(report.Weekly, "Commits")],
+    [sumRows(report.Repositories, "MeaningfulLines"), sumRows(report.Repositories, "SupportLines"), sumRows(report.Repositories, "MechanicalOrBulkLines"), sumRows(report.Repositories, "Commits")]
   ];
+  const expected = [summary.MeaningfulLines, summary.SupportLines, summary.MechanicalOrBulkLines, summary.Commits];
+  const matches = checks.every(row => row.every((value, index) => Number(value || 0) === Number(expected[index] || 0)));
+  const badgeClass = matches ? "ok" : "warn";
+  const badgeText = matches ? "Totals match" : "Totals differ";
 
-  document.getElementById("reconciliation").innerHTML = `<table>
-    <thead><tr><th>Source</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
-    <tbody>${rows.map(row => `<tr>
-      <td>${row[0]}</td>
-      <td class="num">${fmt.format(row[1] || 0)}</td>
-      <td class="num">${fmt.format(row[2] || 0)}</td>
-      <td class="num">${fmt.format(row[3] || 0)}</td>
-      <td class="num">${fmt.format(row[4] || 0)}</td>
-    </tr>`).join("")}</tbody>
-  </table>
-  <p class="note">Line metrics are calculated from authored commits across fetched Git refs. PR counts come from GitHub Search and are shown separately.</p>`;
+  document.getElementById("reconciliation").innerHTML = `
+    <div class="reconcile">
+      <span class="badge ${badgeClass}">${badgeText}</span>
+      <span>Meaningful ${fmt.format(summary.MeaningfulLines || 0)}</span>
+      <span>Support ${fmt.format(summary.SupportLines || 0)}</span>
+      <span>Mechanical/bulk ${fmt.format(summary.MechanicalOrBulkLines || 0)}</span>
+      <span>Commits ${fmt.format(summary.Commits || 0)}</span>
+    </div>
+    <p class="note">Monthly, weekly, and repository totals are checked against the summary. PR counts come from GitHub Search and are shown separately.</p>`;
 }
 
 function renderTable(id, rows) {
