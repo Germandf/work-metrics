@@ -126,7 +126,7 @@ function render(report) {
   const summary = report.Summary;
   const monthlyRows = filterLeadingPartialMonth(report.Monthly, summary.Since);
   const weeklyRows = filterPeriods(report.Weekly, "week", summary.GeneratedAt);
-  document.getElementById("subtitle").textContent = `${summary.User} · ${summary.Since.slice(0, 10)} to ${summary.GeneratedAt.slice(0, 10)} · ${summary.Days} days`;
+  document.getElementById("subtitle").textContent = `${summary.User} - ${summary.Since.slice(0, 10)} to ${summary.GeneratedAt.slice(0, 10)} - ${summary.Days} days`;
 
   renderHeadline(summary);
   renderSummary(summary);
@@ -191,7 +191,7 @@ function renderHeadline(summary) {
       <div class="breakdown-item">
         <div class="label">Support</div>
         <div class="value">${fmt.format(summary.SupportLines || 0)}</div>
-        <div class="sub">${supportPercent}% · ${fmt.format(summary.MigrationLines || 0)} migrations</div>
+        <div class="sub">${supportPercent}% - ${fmt.format(summary.MigrationLines || 0)} migrations</div>
       </div>
       <div class="breakdown-item">
         <div class="label">Mechanical/bulk</div>
