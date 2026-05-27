@@ -128,6 +128,7 @@ function render(report) {
   const weeklyRows = filterPeriods(report.Weekly, "week", summary.GeneratedAt);
   document.getElementById("subtitle").textContent = `${summary.User} · ${summary.Since.slice(0, 10)} to ${summary.GeneratedAt.slice(0, 10)} · ${summary.Days} days`;
 
+  renderHeadline(summary);
   renderSummary(summary);
   renderTrend(weeklyRows, monthlyRows);
   renderReconciliation(report);
@@ -159,18 +160,45 @@ function filterLeadingPartialMonth(rows, since) {
 
 function renderSummary(summary) {
   const metrics = [
-    ["Meaningful lines", summary.MeaningfulLines],
-    ["Outside meaningful", `${valueOrFallback(summary.OutsideMeaningfulLines)} support/mechanical`],
-    ["Support lines", `${valueOrFallback(summary.SupportLines)} incl. ${valueOrFallback(summary.MigrationLines)} migrations`],
-    ["Mechanical/bulk", `${valueOrFallback(summary.MechanicalOrBulkLines)} (${valueOrFallback(summary.MechanicalRatioPercent)}%)`],
     ["Commits", summary.Commits],
     ["PRs", `${summary.PullRequestsAuthored} created / ${summary.PullRequestsMerged} merged`],
+    ["Reviews", summary.PullRequestsReviewed],
     ["Merge speed", `${valueOrFallback(summary.PullRequestMedianMergeHours)}h median`]
   ];
 
   document.getElementById("summary").innerHTML = metrics.map(([label, value]) =>
     `<div class="metric"><div class="label">${label}</div><div class="value">${valueOrFallback(value)}</div></div>`
   ).join("");
+}
+
+function renderHeadline(summary) {
+  const totalChanged = Number(summary.MeaningfulLines || 0) + Number(summary.OutsideMeaningfulLines || 0);
+  const meaningfulPercent = totalChanged > 0 ? Math.round((summary.MeaningfulLines || 0) * 1000 / totalChanged) / 10 : 0;
+  const supportPercent = totalChanged > 0 ? Math.round((summary.SupportLines || 0) * 1000 / totalChanged) / 10 : 0;
+  const mechanicalPercent = totalChanged > 0 ? Math.round((summary.MechanicalOrBulkLines || 0) * 1000 / totalChanged) / 10 : 0;
+
+  document.getElementById("headline").innerHTML = `
+    <div class="headline-total">
+      <div class="label">Total changed lines</div>
+      <div class="value">${fmt.format(totalChanged)}</div>
+    </div>
+    <div class="breakdown">
+      <div class="breakdown-item">
+        <div class="label">Meaningful</div>
+        <div class="value">${fmt.format(summary.MeaningfulLines || 0)}</div>
+        <div class="sub">${meaningfulPercent}% of total</div>
+      </div>
+      <div class="breakdown-item">
+        <div class="label">Support</div>
+        <div class="value">${fmt.format(summary.SupportLines || 0)}</div>
+        <div class="sub">${supportPercent}% · ${fmt.format(summary.MigrationLines || 0)} migrations</div>
+      </div>
+      <div class="breakdown-item">
+        <div class="label">Mechanical/bulk</div>
+        <div class="value">${fmt.format(summary.MechanicalOrBulkLines || 0)}</div>
+        <div class="sub">${mechanicalPercent}% of total</div>
+      </div>
+    </div>`;
 }
 
 function renderTrend(weekly, monthly) {

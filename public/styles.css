@@ -90,11 +90,49 @@ main {
   gap: 12px;
 }
 
-.metric, .trend-card, .panel {
+.headline {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 2fr);
+  gap: 12px;
+}
+
+.headline-total, .breakdown, .metric, .trend-card, .panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
+
+.headline-total {
+  padding: 18px;
+}
+
+.headline-total .label {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.headline-total .value {
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 0;
+  overflow: hidden;
+}
+
+.breakdown-item {
+  padding: 18px;
+  border-left: 1px solid var(--line);
+}
+
+.breakdown-item:first-child { border-left: 0; }
+.breakdown-item .label { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.breakdown-item .value { font-size: 24px; font-weight: 750; }
+.breakdown-item .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
 
 .metric {
   padding: 16px;
@@ -177,12 +215,16 @@ th { color: var(--muted); font-weight: 650; }
 @media (max-width: 900px) {
   .app-header { align-items: flex-start; flex-direction: column; }
   .summary { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+  .headline { grid-template-columns: 1fr; }
   .trend, .grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
   .app-header, main { padding-left: 16px; padding-right: 16px; }
   .summary { grid-template-columns: 1fr; }
+  .breakdown { grid-template-columns: 1fr; }
+  .breakdown-item { border-left: 0; border-top: 1px solid var(--line); }
+  .breakdown-item:first-child { border-top: 0; }
   .toolbar { width: 100%; }
   select { flex: 1; }
 }
