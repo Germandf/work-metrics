@@ -282,9 +282,10 @@ function renderRepoTable(repositories) {
   });
 
   document.getElementById("repoTable").innerHTML = `<table>
-    <thead><tr><th>Repository</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
+    <thead><tr><th>Repository</th><th class="num">Total</th><th class="num">Meaningful</th><th class="num">Support</th><th class="num">Migrations</th><th class="num">Mechanical/bulk</th><th class="num">Commits</th></tr></thead>
     <tbody>${rows.map(row => `<tr class="${row.Repo === "Total" ? "total-row" : ""}">
       <td>${row.Repo}</td>
+      <td class="num">${fmt.format((row.MeaningfulLines || 0) + (row.SupportLines || 0) + (row.MechanicalOrBulkLines || 0))}</td>
       <td class="num">${fmt.format(row.MeaningfulLines || 0)}</td>
       <td class="num">${fmt.format(row.SupportLines || 0)}</td>
       <td class="num">${fmt.format(row.MigrationLines || 0)}</td>
