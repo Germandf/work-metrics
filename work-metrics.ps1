@@ -212,7 +212,17 @@ function Get-CommitStats {
     $commits = @()
     Push-Location $Repo.Path
     try {
-        & git fetch --all --prune --quiet 2>$null
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            & git fetch --all --prune --quiet 2>$null | Out-Null
+        }
+        catch {
+            # Keep going with the local refs when a stale or private remote is unavailable.
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
         foreach ($author in $AuthorPatterns) {
             $log = & git log --all "--since=$($Since.ToString("yyyy-MM-ddTHH:mm:sszzz"))" "--author=$author" --date=iso-strict --numstat --pretty=format:"--COMMIT--%H|%ad|%an|%ae|%s" 2>$null
             if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($log)) {
